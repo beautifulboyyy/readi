@@ -1,0 +1,4 @@
+openai==0.28.1
+pyserini==0.22.1
+sentence_transformers==2.2.2
+tiktoken==0.5.2
