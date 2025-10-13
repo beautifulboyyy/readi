@@ -26,10 +26,12 @@ def get_dataset_file(dataset: str) -> str:
     raise FileNotFoundError(f"Dataset {dataset} is not a valid registered alias or prefix")
 
 LLM_BASE = {
-    'gpt35': "gpt-3.5-turbo",
-    'gpt4': "gpt-4-turbo",
-    'gpt4-8k': "gpt-4-0613",
-    'gpt4-o': "gpt-4o",
+    'gpt35': "qwen-plus",
+    'gpt4': "qwen-max",
+    'gpt4-8k': "qwen-max",
+    'gpt4-o': "qwen-max",
+    'qwen-plus': "qwen-plus",
+    'qwen-max': "qwen-max",
 }
 
 QUESTION_STRING = {

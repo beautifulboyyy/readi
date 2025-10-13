@@ -34,7 +34,7 @@ def parse_args():
             - max_que: 最大问题数
             - dataset: 数据集名称
             - llm: 使用的LLM模型
-            - openai_api_keys: OpenAI API密钥
+            - openai_api_keys: Qwen API密钥
             - count_token_cost: 是否计算token成本
             - initial_path_eval: 是否评估初始路径
             - LLM_type: LLM模型类型
@@ -47,8 +47,8 @@ def parse_args():
     parser.add_argument("--max_token_reasoning", type=int, default=2048)
     parser.add_argument("--max_que", type=int, default=200)
     parser.add_argument("--dataset", type=str, required=True, help="choose the dataset.choices={\"cwq\", \"WebQSP\"}")
-    parser.add_argument("--llm", type=str, choices=LLM_BASE.keys(), default="gpt35", help="base LLM model.")
-    parser.add_argument("--openai_api_keys", type=str, help="opeani_api_keys", default="", required=True)
+    parser.add_argument("--llm", type=str, choices=LLM_BASE.keys(), default="qwen-plus", help="base LLM model.")
+    parser.add_argument("--openai_api_keys", type=str, help="qwen_api_keys", default="", required=True)
     parser.add_argument("--count_token_cost", type=bool, help="count_token_cost", default=False)
     parser.add_argument("--initial_path_eval", type=bool, help="evaluate initial reasoning path (ablation study)", default=False)
     

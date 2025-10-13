@@ -4,8 +4,15 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/..")
 import json
 from sentence_transformers import util
 from utils.freebase_func import *
-import openai
 import time
+from dashscope import Generation, TextEmbedding
+import dashscope
+import threading
+
+# 用于线程安全的API密钥轮询
+_api_key_list = []
+_current_key_index = 0
+_key_lock = threading.Lock()
 
 
 def readjson(file_name):
@@ -57,83 +64,126 @@ def savejson(file_name, new_data):
 
 def get_openai_embedding(input_message, openai_api_keys):
     """
-    获取OpenAI嵌入向量
+    获取Qwen嵌入向量
     
     输入:
         input_message: 输入文本
-        openai_api_keys: OpenAI API密钥
+        openai_api_keys: Qwen API密钥
         
     输出:
-        response['data']: 嵌入向量数据
+        embeddings: 嵌入向量数据
     """
-    ok = False
-    openai.api_key = openai_api_keys
-    openai.api_base = "https://use.52apikey.cn/v1"
-    while not ok:
+    # 支持多个API密钥
+    global _api_key_list, _current_key_index
+    if ',' in openai_api_keys:
+        _api_key_list = openai_api_keys.split(',')
+        # 去除空格
+        _api_key_list = [key.strip() for key in _api_key_list]
+    else:
+        _api_key_list = [openai_api_keys]
+    
+    # 尝试使用Qwen的文本嵌入API
+    for i in range(len(_api_key_list) * 2):  # 多次尝试
+        with _key_lock:
+            api_key = _api_key_list[_current_key_index]
+            _current_key_index = (_current_key_index + 1) % len(_api_key_list)
+        
         try:
-            response = openai.Embedding.create(engine="text-embedding-ada-002",
-                                               input=input_message)
-            ok = True
+            dashscope.api_key = api_key
+            response = TextEmbedding.call(
+                model=TextEmbedding.Models.text_embedding_v1,
+                input=input_message
+            )
+            if response.status_code == 200:
+                # 适配原来的返回格式
+                embeddings = []
+                for item in response.output['embeddings']:
+                    embeddings.append({'embedding': item['embedding']})
+                return embeddings
+            else:
+                print(f"Error in get_openai_embedding: {response.message}")
         except Exception as e:
             print(e)
             print('stuck in here get_openai_embedding')
+    
+    # 如果所有尝试都失败了，抛出异常
+    raise Exception("Failed to get embeddings from Qwen API")
 
-    return response['data']
 
-
-def run_llm(prompt, temperature, max_tokens, openai_api_keys, engine="gpt-3.5-turbo"):
+def run_llm(prompt, temperature, max_tokens, openai_api_keys, engine="qwen-plus"):
     """
-    运行LLM模型
+    运行Qwen模型
     
     输入:
         prompt: 提示文本
         temperature: 温度参数
         max_tokens: 最大token数
-        openai_api_keys: OpenAI API密钥
-        engine: 模型引擎，默认为"gpt-3.5-turbo"
+        openai_api_keys: API密钥
+        engine: 模型引擎，默认为"qwen-plus"
         
     输出:
         result: LLM生成的结果
     """
-    messages = []
-    message_prompt = {"role":"user","content":prompt}
-    messages.append(message_prompt)
+    # 支持多个API密钥
+    global _api_key_list, _current_key_index
+    if ',' in openai_api_keys:
+        _api_key_list = openai_api_keys.split(',')
+        # 去除空格
+        _api_key_list = [key.strip() for key in _api_key_list]
+    else:
+        _api_key_list = [openai_api_keys]
+    
+    # Qwen模型映射
+    qwen_model_mapping = {
+        "gpt-3.5-turbo": "qwen-plus",
+        "gpt-4-turbo": "qwen-max",
+        "gpt-4-0613": "qwen-max",
+        "gpt-4o": "qwen-max",
+        "qwen-plus": "qwen-plus",
+        "qwen-max": "qwen-max"
+    }
+    
+    # 获取对应的Qwen模型
+    if engine in qwen_model_mapping:
+        qwen_model = qwen_model_mapping[engine]
+    else:
+        # 如果没有映射关系，默认使用qwen-plus
+        qwen_model = "qwen-plus"
+    
+    messages = [
+        {"role":"user","content":prompt}
+    ]
     f = 0
-    result = [{"content": ""}]
-
-    openai.api_key = openai_api_keys
-    openai.api_base = "https://use.52apikey.cn/v1"
-    while(f <= 5):
+    
+    # 尝试使用Qwen API
+    for i in range(len(_api_key_list) * 2):  # 多次尝试
+        with _key_lock:
+            api_key = _api_key_list[_current_key_index]
+            _current_key_index = (_current_key_index + 1) % len(_api_key_list)
+        
         try:
-            response = openai.ChatCompletion.create(
-                model=engine,
+            dashscope.api_key = api_key
+            response = Generation.call(
+                model=qwen_model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                frequency_penalty=0,
-                presence_penalty=0,
+                result_format='message'
             )
-
-            result = response["choices"][0]['message']['content'].strip()
-            if len(result) == 0:
-                f += 1
-                continue
-            break
-
-        except Exception as e:
-            print("error: ", e)
-            print("openai error, retry")
-
-            f += 1
-            # trim the input according to the model's max token limit
-            if "gpt-4" in engine:
-                messages[-1] = {"role":"user","content": prompt[:32767]}
-                time.sleep(10)
+            
+            if response.status_code == 200:
+                result = response.output.choices[0].message.content.strip()
+                if len(result) > 0:
+                    return result
             else:
-                messages[-1] = {"role":"user","content": prompt[:16384]}
-                time.sleep(5)
-
-    return result
+                print(f"Qwen API error: {response.message}")
+                
+        except Exception as e:
+            print("Qwen error: ", e)
+            print("qwen error, retry")
+    
+    # 如果所有尝试都失败了，抛出异常
+    raise Exception("Failed to get response from Qwen API")
 
 
 def get_ent_one_hop_rel(entity_id, pre_relations=[], pre_head=-1, literal=False):
