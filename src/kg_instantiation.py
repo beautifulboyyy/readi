@@ -15,14 +15,15 @@ contriever_searcher = FaissSearcher(os.path.join(CONTRIEVER_PATH, 'contriever_fb
 hsearcher = HybridSearcher(contriever_searcher, bm25_searcher)
 
 def similar_relation_from_question(question, topk=5):
-    """search similar relations according to the question. Aims for corrputed reasoning path.
-
-    Args:
-        question
-        topk (Defaults to 5).
-
-    Returns:
-        retrieved relations
+    """
+    根据问题搜索相似的关系，用于处理损坏的推理路径
+    
+    输入:
+        question: 问题文本
+        topk: 返回的相似关系数量，默认为5
+        
+    输出:
+        result: 检索到的相似关系列表
     """
     result = []
     hits = hsearcher.search(question, k=1000)[:topk]
@@ -31,14 +32,15 @@ def similar_relation_from_question(question, topk=5):
     return result
 
 def grounding_relations(relation, topk=5):
-    """bind a natural language relation to KG relation candidates
-
-    Args:
-        relation (_type_): _description_
-        topk (int, optional): _description_. Defaults to 5.
-
-    Returns:
-        _type_: _description_
+    """
+    将自然语言关系绑定到知识图谱关系候选
+    
+    输入:
+        relation: 自然语言关系描述
+        topk: 返回的候选关系数量，默认为5
+        
+    输出:
+        result_no_q: 知识图谱关系候选列表
     """
     result_no_q = []
     relation_tokens = relation.replace("."," ").replace("_", " ").strip()
@@ -49,14 +51,15 @@ def grounding_relations(relation, topk=5):
     return result_no_q
 
 def relation_binding(reasoning_path_LLM_init, topk=5):
-    """bind all relations in the reasoning path to KG relation candidates
-
-    Args:
-        reasoning_path_LLM_init (dict): generated reasoning path from each topic entity
-        topk (int, optional): bind a relation to topk candidates. Defaults to 5.
-
-    Returns:
-        grounded_relations (dict): grounded relations for each reasoning path
+    """
+    将推理路径中的所有关系绑定到知识图谱关系候选
+    
+    输入:
+        reasoning_path_LLM_init: 每个主题实体生成的推理路径字典
+        topk: 每个关系绑定的候选数量，默认为5
+        
+    输出:
+        grounded_relations: 每个推理路径的已绑定关系字典
     """
     predicted_reasoning_path = []
     for keys in reasoning_path_LLM_init.keys():
@@ -80,22 +83,21 @@ def relation_binding(reasoning_path_LLM_init, topk=5):
 
 def bfs_for_each_path(entity_id, target_path, grounded_reasoning_set, options, max_que = 300):
     """
-    Path connecting for each reasoning path, according to the reasoning path.
-    This is essentially a BFS search for each relation in the reasoning path. Each layer of BFS search consists of candidate relations.
-    In each layer, we check if neighbors of the current node have intersection with the candidate relation. If so, current relation is successfully instantiated.
-
-    We return useful structured information (including currently instantiated instances and possible candidate relations in the failed points) for editing if instantiation fails.
-    Args:
-        entity_id : topic entity id for current reasoning path
-        target_path : current reasoning path
-        grounded_reasoning_set (list): list of grounded relation candidates for each position in the reasoning path
-        options : parsed arguments
-        max_que (int, optional): maximum queue size for each layer. Defaults to 300.
-
-    Returns:
-        result_paths : instantiated reasoning path (empty if instantiation fails)
-        grounded_knowledge_current : stores all instances during BFS (length starting from 0)
-        ungrounded_neighbor_relation_dict : if instantiation fails, store some relations as candidates for editing
+    为每个推理路径进行路径连接，本质上是对推理路径中每个关系的BFS搜索
+    在每一层BFS搜索中，检查当前节点的邻居是否与候选关系有交集，如果有则当前关系实例化成功
+    如果实例化失败，返回有用的结构化信息（包括当前实例化的实例和失败点的候选关系）用于编辑
+    
+    输入:
+        entity_id: 当前推理路径的主题实体ID
+        target_path: 当前推理路径
+        grounded_reasoning_set: 推理路径中每个位置的已绑定关系候选列表
+        options: 解析后的参数
+        max_que: 每层的最大队列大小，默认为300
+        
+    输出:
+        result_paths: 实例化的推理路径（如果实例化失败则为空）
+        grounded_knowledge_current: BFS期间存储的所有实例（长度从0开始）
+        ungrounded_neighbor_relation_dict: 如果实例化失败，存储一些关系作为编辑候选
     """
     result_paths = []
     current_position = 0

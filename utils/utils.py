@@ -9,11 +9,29 @@ import time
 
 
 def readjson(file_name):
+    """
+    读取JSON文件
+    
+    输入:
+        file_name: JSON文件路径
+        
+    输出:
+        data: 从JSON文件中加载的数据
+    """
     with open(file_name, encoding='utf-8') as f:
         data = json.load(f)
     return data
 
 def read_jsonl(file_path):
+    """
+    读取JSONL文件（每行一个JSON对象）
+    
+    输入:
+        file_path: JSONL文件路径
+        
+    输出:
+        data: 包含所有JSON对象的列表
+    """
     data = []
     with open(file_path, 'r', encoding='utf-8') as file:
         for line in file:
@@ -23,11 +41,31 @@ def read_jsonl(file_path):
 
 
 def savejson(file_name, new_data):
+    """
+    将数据保存为JSON文件
+    
+    输入:
+        file_name: 要保存的JSON文件路径
+        new_data: 要保存的数据
+        
+    输出:
+        无
+    """
     with open(file_name, mode='w',encoding='utf-8') as fp:
         json.dump(new_data, fp, indent=4, sort_keys=False,ensure_ascii=False)
 
 
 def get_openai_embedding(input_message, openai_api_keys):
+    """
+    获取OpenAI嵌入向量
+    
+    输入:
+        input_message: 输入文本
+        openai_api_keys: OpenAI API密钥
+        
+    输出:
+        response['data']: 嵌入向量数据
+    """
     ok = False
     openai.api_key = openai_api_keys
     openai.api_base = "https://use.52apikey.cn/v1"
@@ -44,6 +82,19 @@ def get_openai_embedding(input_message, openai_api_keys):
 
 
 def run_llm(prompt, temperature, max_tokens, openai_api_keys, engine="gpt-3.5-turbo"):
+    """
+    运行LLM模型
+    
+    输入:
+        prompt: 提示文本
+        temperature: 温度参数
+        max_tokens: 最大token数
+        openai_api_keys: OpenAI API密钥
+        engine: 模型引擎，默认为"gpt-3.5-turbo"
+        
+    输出:
+        result: LLM生成的结果
+    """
     messages = []
     message_prompt = {"role":"user","content":prompt}
     messages.append(message_prompt)
@@ -86,6 +137,18 @@ def run_llm(prompt, temperature, max_tokens, openai_api_keys, engine="gpt-3.5-tu
 
 
 def get_ent_one_hop_rel(entity_id, pre_relations=[], pre_head=-1, literal=False):
+    """
+    获取实体的一跳关系
+    
+    输入:
+        entity_id: 实体ID
+        pre_relations: 先前的关系列表
+        pre_head: 先前的头实体标识
+        literal: 是否包含文字类型
+        
+    输出:
+        total_relations: 实体的所有一跳关系列表
+    """
     if entity_id.startswith("m.") == False and entity_id.startswith("g.")==False:
         return []
     
@@ -123,6 +186,17 @@ def get_ent_one_hop_rel(entity_id, pre_relations=[], pre_head=-1, literal=False)
 
 
 def entity_search(entity, relation, head=True):
+    """
+    根据实体和关系搜索相关实体
+    
+    输入:
+        entity: 实体
+        relation: 关系
+        head: 是否作为头实体搜索，默认为True
+        
+    输出:
+        new_entity: 搜索到的相关实体列表
+    """
     if head:
         if "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" in relation:
             tail_entities_extract = sparql_tail_entities_extract_with_type% (entity)
@@ -144,6 +218,15 @@ def entity_search(entity, relation, head=True):
 
 
 def path_to_string(path: list) -> str:
+    """
+    将路径列表转换为字符串
+    
+    输入:
+        path: 路径列表，每个元素为(h, r, t)三元组
+        
+    输出:
+        result: 路径字符串
+    """
     result = ""
     for i, p in enumerate(path):
         if i == 0:
@@ -156,6 +239,15 @@ def path_to_string(path: list) -> str:
     return result.strip()
 
 def string_to_path(path_string):
+    """
+    将路径字符串转换为列表
+    
+    输入:
+        path_string: 路径字符串
+        
+    输出:
+        result: 路径列表
+    """
     result = []
     if type(path_string) == list:
         path_string = path_string[0]
@@ -168,20 +260,22 @@ def string_to_path(path_string):
 
 
 def similar_search_list(question, relation_list, options):
-    """Use openai embedding to filter similar relations according to the question.
-    We do this because in a large-scale KG, relation_list can be very large and confuses the LLM.
-
-    This can be optimized using cached embeddings. 
-    We recommand to used cached embedding for all relations in the knowledge graph and all questions to save token.
-    We do not opensource the embedding for policy reason. You can use get_openai_embedding to get the embedding to create a cache file in data/openai_embeddings and modify this function.
+    """
+    使用OpenAI嵌入向量根据问题过滤相似关系
+    在大规模知识图谱中，relation_list可能非常大并使LLM混淆，因此进行此操作
     
-    Args:
-        question 
-        relation_list 
-        options : providing openai_api_keys
-
-    Returns:
-        relations similar to the question
+    可以使用缓存嵌入向量进行优化
+    建议为知识图谱中的所有关系和所有问题使用缓存嵌入向量以节省token
+    出于政策原因，我们不公开嵌入向量。您可以使用get_openai_embedding获取嵌入向量，
+    在data/openai_embeddings中创建缓存文件并修改此函数
+    
+    输入:
+        question: 问题文本
+        relation_list: 关系列表
+        options: 提供openai_api_keys的配置选项
+        
+    输出:
+        sorted_relation_list: 与问题相似的关系列表
     """
     question_embedding = get_openai_embedding(question, options.openai_api_keys)[0]['embedding']
     relation_embeddings = []
@@ -209,11 +303,30 @@ def similar_search_list(question, relation_list, options):
     return sorted_relation_list
 
 def get_timestamp():
+    """
+    获取当前时间戳
+    
+    输入:
+        无
+        
+    输出:
+        timestamp字符串，格式为"月_日_时_分"
+    """
     now = datetime.datetime.now()
     return now.strftime(r"%m_%d_%H_%M")
 
 
 def jsonl_to_json(jsonl_file_path, json_file_path):
+    """
+    将JSONL文件转换为JSON文件
+    
+    输入:
+        jsonl_file_path: JSONL文件路径
+        json_file_path: 要保存的JSON文件路径
+        
+    输出:
+        无
+    """
     data = []
     with open(jsonl_file_path, 'r') as jsonl_file:
         for line in jsonl_file:

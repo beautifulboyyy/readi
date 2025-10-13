@@ -19,6 +19,26 @@ import tiktoken
 PROMPT_PATH = "prompt/kgqa"
 
 def parse_args():
+    """
+    解析命令行参数
+    
+    输入: 无
+    
+    输出:
+        args: 解析后的命令行参数对象，包含如下属性：
+            - full: 是否使用完整数据集
+            - verbose: 是否输出详细信息
+            - temperature: LLM温度参数
+            - max_token: 最大token数
+            - max_token_reasoning: 推理最大token数
+            - max_que: 最大问题数
+            - dataset: 数据集名称
+            - llm: 使用的LLM模型
+            - openai_api_keys: OpenAI API密钥
+            - count_token_cost: 是否计算token成本
+            - initial_path_eval: 是否评估初始路径
+            - LLM_type: LLM模型类型
+    """
     parser = ArgumentParser("KGQA for cwq or WebQSP")
     parser.add_argument("--full", action="store_true", help="full dataset.")
     parser.add_argument("--verbose", action="store_true", help="verbose or not.", default=False)
@@ -38,6 +58,15 @@ def parse_args():
 
 
 def question_process(fpath):
+    """
+    处理问题文件
+    
+    输入:
+        fpath: 文件路径
+        
+    输出:
+        data: 从文件中读取的数据
+    """
     if fpath.endswith('jsonl'):
         data = read_jsonl(fpath)
     else:
@@ -47,7 +76,16 @@ def question_process(fpath):
 
 
 def num_tokens_from_string(string: str, model_name: str = "gpt-3.5-turbo") -> int:
-    """Returns the number of tokens in a text string.  For calculating token cost."""
+    """
+    计算文本字符串中的token数量，用于计算token成本
+    
+    输入:
+        string: 要计算token数的文本字符串
+        model_name: 模型名称，默认为"gpt-3.5-turbo"
+        
+    输出:
+        num_tokens: token数量
+    """
     encoding = tiktoken.encoding_for_model(model_name)
     num_tokens = len(encoding.encode(string))
     return num_tokens
@@ -55,21 +93,21 @@ def num_tokens_from_string(string: str, model_name: str = "gpt-3.5-turbo") -> in
 
 def LLM_edit(reasoning_path_LLM_init, entity_label, feedback, question, options, input_token_cnt=0, output_token_cnt=0):
     """
-    reasoning path editing
-
-    Args:
-        reasoning_path_LLM_init : previous reasoning path
-        entity_label : topic entity
-        feedback : prepared error message for editing
-        question 
-        options 
-        input_token_cnt 
-        output_token_cnt
-
-    Returns:
-        reasoning_path_LLM_init : edited reasoning path
-        thought : LLM CoT
-        input_token_cnt, output_token_cnt : to calculate token cost
+    推理路径编辑
+    
+    输入:
+        reasoning_path_LLM_init: 之前的推理路径
+        entity_label: 主题实体
+        feedback: 为编辑准备的错误信息
+        question: 问题
+        options: 配置选项
+        input_token_cnt: 输入token计数
+        output_token_cnt: 输出token计数
+        
+    输出:
+        reasoning_path_LLM_init: 编辑后的推理路径
+        thought: LLM思维链
+        input_token_cnt, output_token_cnt: 用于计算token成本
     """
     init_path = reasoning_path_LLM_init[entity_label]
     err_msg, grounded_know_string, candidate_rel = feedback
@@ -122,19 +160,20 @@ def LLM_edit(reasoning_path_LLM_init, entity_label, feedback, question, options,
     return reasoning_path_LLM_init, thought, input_token_cnt, output_token_cnt
 
 def get_init_reasoning_path(question, topic_ent, options, input_token_cnt=0, output_token_cnt=0):
-    """generate initial reasoning path
-
-    Args:
-        question
-        topic_ent : topic entities
-        options : parsed arguments
-        input_token_cnt : to calculate token cost
-        output_token_cnt : to calculate token cost
-
-    Returns:
-        init_reasoning_path
-        input_token_cnt
-        output_token_cnt
+    """
+    生成初始推理路径
+    
+    输入:
+        question: 问题
+        topic_ent: 主题实体列表
+        options: 解析后的参数
+        input_token_cnt: 输入token计数，用于计算token成本
+        output_token_cnt: 输出token计数，用于计算token成本
+        
+    输出:
+        init_reasoning_path: 初始推理路径
+        input_token_cnt: 输入token计数
+        output_token_cnt: 输出token计数
     """
     prompt = open(
         os.path.join(PROMPT_PATH, f"{options.dataset}_init.md"),
@@ -177,7 +216,17 @@ def get_init_reasoning_path(question, topic_ent, options, input_token_cnt=0, out
 
 
 def llm_reasoning(reasoning_paths_instances, question, options):
-    """call llm for QA reasoning"""
+    """
+    调用LLM进行问答推理
+    
+    输入:
+        reasoning_paths_instances: 推理路径实例
+        question: 问题
+        options: 配置选项
+        
+    输出:
+        response: LLM的响应
+    """
     kg_instances_str = ""
     kg_triple_set = []
     response = ""
@@ -232,17 +281,26 @@ def llm_reasoning(reasoning_paths_instances, question, options):
     return response
 
 def check_string(string):
+    """
+    检查字符串是否包含'{'
+    
+    输入:
+        string: 要检查的字符串
+        
+    输出:
+        bool: 如果包含'{'返回True，否则返回False
+    """
     return "{" in string
 
 def clean_results(string):
     """
-    Extract result from LLM output.
-
-    Args:
-        string : LLM output
-
-    Returns:
-        extracted result
+    从LLM输出中提取结果
+    
+    输入:
+        string: LLM输出
+        
+    输出:
+        extracted result: 提取的结果
     """
     if "{" in string:
         start = string.find("{") + 1
@@ -253,6 +311,16 @@ def clean_results(string):
         return "NULL"
    
 def hit1(response, answers):
+    """
+    判断响应是否与答案匹配
+    
+    输入:
+        response: 响应文本
+        answers: 答案列表
+        
+    输出:
+        bool: 如果匹配返回True，否则返回False
+    """
     clean_result = response.strip().replace(" ","").lower()
     for answer in answers:
         clean_answer = answer.strip().replace(" ","").lower()
@@ -263,7 +331,16 @@ def hit1(response, answers):
     return False 
 
 def evaluate(results, ground_truth):
-    """return hit"""
+    """
+    评估结果是否正确
+    
+    输入:
+        results: 结果
+        ground_truth: 标准答案
+        
+    输出:
+        hit: 是否命中(1表示命中，0表示未命中)
+    """
     hit = 0
     if check_string(results):
         response = clean_results(results)
@@ -284,22 +361,21 @@ def evaluate(results, ground_truth):
 
 def check_ending(result_paths, grounded_knowledge_current, ungrounded_neighbor_relation_dict, reasoning_path_LLM_init, entity_label, question, options):
     """
-    Check if we need to edit the reasoning path.
-    If so, prepare the feedback from instantiation information.
-
-    Args:
-        result_paths : KG instances
-        grounded_knowledge_current : stores all instances during BFS (length starting from 0)
-        ungrounded_neighbor_relation_dict : if instantiation fails, this store some relations as candidates for editing
-        reasoning_path_LLM_init : previous reasoning path from each topic entity
-        entity_label : topic entity
-        question 
-        options
-
-    Returns:
-        max_path_len : length for the longest instance
-        End_loop_cur_path: whether we need to edit the reasoning path
-        (err_msg, grounded_know_string, candidate_rel) : prepared feedback for editing
+    检查是否需要编辑推理路径，如果需要则从实例化信息中准备反馈
+    
+    输入:
+        result_paths: 知识图谱实例
+        grounded_knowledge_current: 存储BFS期间的所有实例(长度从0开始)
+        ungrounded_neighbor_relation_dict: 如果实例化失败，这里存储一些关系作为编辑候选
+        reasoning_path_LLM_init: 每个主题实体的先前推理路径
+        entity_label: 主题实体
+        question: 问题
+        options: 配置选项
+        
+    输出:
+        max_path_len: 最长实例的长度
+        End_loop_cur_path: 是否需要编辑推理路径
+        (err_msg, grounded_know_string, candidate_rel): 为编辑准备的反馈
     """
     
     max_path_len = grounded_knowledge_current[-1][-1]
@@ -395,22 +471,22 @@ def check_ending(result_paths, grounded_knowledge_current, ungrounded_neighbor_r
 
 def merge_different_path(grounded_revised_knowledge, reasoning_paths, options):
     """
-    Merge different paths instances from different topic entities.
-    For instances from each topic entity, we first take all entities in these instances and calculate the intersection of these entities.
-    If the intersection is not empty, we retain all instances containing these intersected entities for instances from each topic entities.
-    For example, for the question "What country bordering France contains an airport that serves Nijmegen?", we have instances from "France" and "Nijmegen".
-    We take all entities from "France" and "Nijmegen" and calculate that the intersection is "German".
-    Then, we retain all path instances for "France" and "Nijmegen" containing "German".
-
-    Moreover, if one path instances contains too much instances (more than 50), we remove some these instances, because they might not be useful for LLM's QA reasoning.
-
-    Args:
-        grounded_revised_knowledge : knowledge instances from each topic entity
-        reasoning_paths : all knowledge instances (cumulated)
-        options
-
-    Returns:
-        merged path instances
+    合并来自不同主题实体的不同路径实例
+    对于每个主题实体的实例，我们首先获取这些实例中的所有实体并计算这些实体的交集
+    如果交集不为空，我们保留包含这些交集实体的所有实例
+    例如，对于问题"What country bordering France contains an airport that serves Nijmegen?"，我们有来自"France"和"Nijmegen"的实例
+    我们获取"France"和"Nijmegen"的所有实体并计算交集为"German"
+    然后，我们保留包含"German"的"France"和"Nijmegen"的所有路径实例
+    
+    此外，如果一个路径实例包含太多实例(超过50个)，我们会删除一些实例，因为它们可能对LLM的问答推理没有用处
+    
+    输入:
+        grounded_revised_knowledge: 每个主题实体的知识实例
+        reasoning_paths: 所有知识实例(累积的)
+        options: 配置选项
+        
+    输出:
+        merged path instances: 合并后的路径实例
     """
     if options.verbose:
         print("**********************merge*****************************")
@@ -463,6 +539,13 @@ def merge_different_path(grounded_revised_knowledge, reasoning_paths, options):
     return reasoning_paths
 
 def main():    
+    """
+    主函数，执行知识图谱问答的主要流程
+    
+    输入: 无(使用全局的options变量)
+    
+    输出: 无(将结果写入文件)
+    """
     options.LLM_type = LLM_BASE[options.llm]
     input_file = get_dataset_file(options.dataset)
     output_file = os.path.join(OUTPUT_FILE_PATH, f"KGQA/{options.dataset}_{options.llm}_{get_timestamp()}.jsonl")
@@ -611,5 +694,8 @@ def main():
     print(f"hit:{np.mean(metrics['hit'])}")
 
 if __name__ == '__main__':
+    """
+    程序入口点
+    """
     options = parse_args()
     main()
