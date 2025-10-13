@@ -1,3 +1,0 @@
-numpy==1.24.4
-SPARQLWrapper==2.0.0
-tqdm==4.66.1y
